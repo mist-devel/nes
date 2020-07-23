@@ -251,6 +251,7 @@ wire [1:0] diskside = (diskside_osd == 0) ? diskside_req : (diskside_osd - 1'd1)
 NES nes(
 	.clk(clk),
 	.reset_nes(reset_nes),
+	.cold_reset(downloading & (type_fds | type_nes)),
 	.sys_type(system_type),
 	.nes_div(nes_ce),
 	.mapper_flags(mapper_flags),

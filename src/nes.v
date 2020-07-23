@@ -73,6 +73,7 @@ endmodule
 module NES(
 	input         clk,
 	input         reset_nes,
+	input         cold_reset,
 	input   [1:0] sys_type,
 	output  [2:0] nes_div,
 	input  [31:0] mapper_flags,
@@ -162,12 +163,12 @@ wire [7:0] cpu_dout;
 
 // odd or even apu cycle, AKA div_apu or apu_/clk2. This is actually not 50% duty cycle. It is high for 18
 // master cycles and low for 6 master cycles. It is considered active when low or "even".
-reg odd_or_even = 0; // 1 == odd, 0 == even
+reg odd_or_even = 1; // 1 == odd, 0 == even
 
 // XXX: Because we are using div4 clock divider for PAL, master clock should be 21.2813696
 // Clock Dividers
 wire [4:0] div_cpu_n = 5'd12;
-wire [2:0] div_ppu_n = 3'd4; 
+wire [2:0] div_ppu_n = 3'd4;
 
 // Counters
 reg [4:0] div_cpu = 5'd1;
@@ -183,6 +184,8 @@ wire cart_ce = (cart_pre & ppu_ce); // First PPU cycle where cpu data is visible
 wire cart_pre  = (ppu_tick == (cpu_tick_count[2] ? 1 : 0));
 wire ppu_read  = (ppu_tick == (cpu_tick_count[2] ? 2 : 1));
 wire ppu_write = (ppu_tick == (cpu_tick_count[2] ? 1 : 0));
+
+wire phi2 = (div_cpu > 4 && div_cpu < div_cpu_n);
 
 // The infamous NES jitter is important for accuracy, but wreks havok on modern devices and scalers,
 // so what I do here is pause the whole system for one PPU clock and insert a "fake" ppu clock to
@@ -235,7 +238,7 @@ always @(posedge clk) begin
 	end
 
 	if (reset)
-		odd_or_even <= 1'b0;
+		odd_or_even <= 1'b1;
 	else if (cpu_ce) 
 		odd_or_even <= ~odd_or_even;
 
@@ -327,14 +330,16 @@ wire [15:0] sample_apu;
 APU apu(
 	.MMC5           (1'b0),
 	.clk            (clk),
+	.PHI2           (phi2),
+	.CS             (apu_cs),
 	.PAL            (sys_type[0]),
-	.ce             (cpu_ce),
+	.ce             (apu_ce),
 	.reset          (reset),
+	.cold_reset     (cold_reset),
 	.ADDR           (addr[4:0]),
 	.DIN            (dbus),
 	.DOUT           (apu_dout),
-	.MW             (mw_int && apu_cs),
-	.MR             (mr_int && apu_cs),
+	.RW             (cpu_rnw),
 	.audio_channels (audio_channels),
 	.Sample         (sample_apu),
 	.DmaReq         (apu_dma_request),
