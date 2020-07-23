@@ -322,6 +322,7 @@ set_global_assignment -name SYSTEMVERILOG_FILE src/mappers/misc.sv
 set_global_assignment -name SYSTEMVERILOG_FILE src/mappers/JYCompany.sv
 set_global_assignment -name SYSTEMVERILOG_FILE src/mappers/generic.sv
 set_global_assignment -name SYSTEMVERILOG_FILE src/mappers/FDS.sv
+set_global_assignment -name VERILOG_FILE src/mappers/iir_filter.v
 set_global_assignment -name QIP_FILE src/T65/T65.qip
 set_global_assignment -name SIGNALTAP_FILE out/loader.stp
 set_global_assignment -name SIGNALTAP_FILE out/cpu.stp

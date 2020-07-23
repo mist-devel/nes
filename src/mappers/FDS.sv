@@ -340,7 +340,7 @@ always@(posedge clk20) begin
 			Wstate<=1;
 		else if(~nesprg_we & (prgain==WRITE_HI) & Wstate==1)
 			Wstate<=2;
-		else 
+		else
 			Wstate<=0;
 
 		if(~nesprg_we & (prgain==READ_LO))
@@ -432,18 +432,44 @@ fds_audio fds_audio
 
 wire [11:0] audio_exp;
 
-// XXX: This needs to be replaced with a proper ~2000hz LPF
-lpf_aud fds_lpf
-(
-	.CLK(clk),
-	.CE(ce),
-	.IDATA(16'hFFFF - {1'b0, audio_exp[11:0], audio_exp[11:9]}),
-	.ODATA(audio_exp_f)
-);
+reg [2:0] div_fds;
+reg fds_filter_ce;
+
+always @(posedge clk) begin
+	fds_filter_ce <= 0;
+	div_fds <= div_fds + 1'd1;
+	if (div_fds == 2) begin
+		div_fds <= 0;
+		fds_filter_ce <= 1;
+	end
+
+	if (~enable) begin
+		div_fds <= 0;
+		fds_filter_ce <= 0;
+	end
+end
 
 wire [15:0] audio_exp_f;
-wire [16:0] audio = audio_in + audio_exp_f;
-assign audio_out = 16'hFFFF - audio[16:1];
+
+IIR_filter #(
+	.coeff_x   (2.15/1.140404269e+03),
+	.coeff_x0  (1),
+	.coeff_x1  (0),
+	.coeff_x2  (0),
+	.coeff_y0  (-0.9982462360),
+	.coeff_y1  (0),
+	.coeff_y2  (0),
+	.stereo    (0)
+) fds_filter (
+	.clk       (clk),
+	.ce        (fds_filter_ce),
+	.sample_ce (1),
+	.input_l   ({audio_exp[11:0], 4'b0000}),
+	.output_l  (audio_exp_f)
+);
+
+wire [16:0] audio = audio_in + {1'b0, ~(audio_exp_f[15] ? 15'h7FFF : audio_exp_f[14:0])};
+assign audio_out = ~audio[16:1];
 
 endmodule
 
@@ -706,32 +732,6 @@ end else if (~old_m2 & m2) begin
 		endcase
 	end
 end // if m2
-end
-
-endmodule
-
-module lpf_aud
-(
-	input         CLK,
-	input         CE,
-	input  [15:0] IDATA,
-	output reg [15:0] ODATA
-);
-
-reg [511:0] acc;
-reg [20:0] sum;
-
-always @(*) begin
-	integer i;
-	sum = 0;
-	for (i = 0; i < 32; i = i+1) sum = sum + {{5{acc[(i*16)+15]}}, acc[i*16 +:16]};
-end
-
-always @(posedge CLK) begin
-	if(CE) begin
-		acc <= {acc[495:0], IDATA};
-		ODATA <= sum[20:5];
-	end
 end
 
 endmodule
