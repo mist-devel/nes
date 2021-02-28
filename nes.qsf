@@ -123,7 +123,7 @@ set_location_assignment PIN_43 -to SDRAM_CLK
 set_global_assignment -name CYCLONEII_OPTIMIZATION_TECHNIQUE BALANCED
 set_global_assignment -name SMART_RECOMPILE ON
 set_global_assignment -name ENABLE_SIGNALTAP OFF
-set_global_assignment -name USE_SIGNALTAP_FILE out/cpu.stp
+set_global_assignment -name USE_SIGNALTAP_FILE out/sdram.stp
 set_global_assignment -name PHYSICAL_SYNTHESIS_COMBO_LOGIC ON
 set_global_assignment -name PHYSICAL_SYNTHESIS_REGISTER_DUPLICATION ON
 set_global_assignment -name PHYSICAL_SYNTHESIS_EFFORT NORMAL
@@ -296,8 +296,8 @@ set_global_assignment -name SYSTEMVERILOG_FILE mist/NES_mist.sv
 set_global_assignment -name VERILOG_FILE mist/ps2_intf.v
 set_global_assignment -name VERILOG_FILE mist/keyboard.v
 set_global_assignment -name VERILOG_FILE mist/sigma_delta_dac.v
-set_global_assignment -name VERILOG_FILE mist/sdram.v
 set_global_assignment -name VERILOG_FILE mist/clk.v
+set_global_assignment -name SYSTEMVERILOG_FILE mist/sdram.sv
 set_global_assignment -name SDC_FILE mist/constraints.sdc
 set_global_assignment -name SYSTEMVERILOG_FILE src/GameLoader.sv
 set_global_assignment -name VERILOG_FILE src/nes.v

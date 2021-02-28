@@ -51,6 +51,9 @@ module NES_mist(
 parameter CONF_STR = {
 			"NES;NESFDSNSF;",
 			"F,BIN,Load FDS BIOS;",
+			"S0,SAV,Mount SRAM;",
+			"TE,Load SRAM;",
+			"TF,Write SRAM;",
 			"O12,System Type,NTSC,PAL,Dendy;",
 			"O34,Scanlines,OFF,25%,50%,75%;",
 			"O5,Joystick swap,OFF,ON;",
@@ -59,7 +62,7 @@ parameter CONF_STR = {
 			"O8,Palette,FCEUX,Unsaturated-V6;",
 			"O9B,Disk side,Auto,A,B,C,D;",
 			"T0,Reset;",
-			"V,v2.0-test1;"
+			"V,v2.0;"
 };
 
 wire [31:0] status;
@@ -73,6 +76,8 @@ wire mirroring_osd = status[6];
 wire overscan_osd = status[7];
 wire palette2_osd = status[8];
 wire [2:0] diskside_osd = status[11:9];
+wire bk_load = status[14];
+wire bk_save = status[15];
 
 wire scandoubler_disable;
 wire ypbpr;
@@ -84,29 +89,56 @@ wire [7:0] core_joy_B;
 wire [1:0] buttons;
 wire [1:0] switches;
 
+reg  [31:0] sd_lba;
+reg         sd_rd = 0;
+reg         sd_wr = 0;
+wire        sd_ack;
+wire  [8:0] sd_buff_addr;
+wire  [7:0] sd_buff_dout;
+wire  [7:0] sd_buff_din;
+wire        sd_buff_rd;
+wire        sd_buff_wr;
+wire  [1:0] img_mounted;
+wire [31:0] img_size;
+
 user_io #(.STRLEN($size(CONF_STR)>>3)) user_io(
-   .clk_sys(clk),
-   .conf_str(CONF_STR),
-   // the spi interface
+	.clk_sys(clk),
+	.clk_sd(clk),
+	.conf_str(CONF_STR),
+	// the spi interface
 
-   .SPI_CLK(SPI_SCK),
-   .SPI_SS_IO(CONF_DATA0),
-   .SPI_MISO(SPI_DO),   // tristate handling inside user_io
-   .SPI_MOSI(SPI_DI),
+	.SPI_CLK(SPI_SCK),
+	.SPI_SS_IO(CONF_DATA0),
+	.SPI_MISO(SPI_DO),   // tristate handling inside user_io
+	.SPI_MOSI(SPI_DI),
 
-   .switches(switches),
-   .buttons(buttons),
-   .scandoubler_disable(scandoubler_disable),
-   .ypbpr(ypbpr),
-   .no_csync(no_csync),
+	.switches(switches),
+	.buttons(buttons),
+	.scandoubler_disable(scandoubler_disable),
+	.ypbpr(ypbpr),
+	.no_csync(no_csync),
 
-   .joystick_0(core_joy_A),
-   .joystick_1(core_joy_B),
+	.joystick_0(core_joy_A),
+	.joystick_1(core_joy_B),
 
-   .status(status),
+	.status(status),
 
-   .ps2_kbd_clk(ps2_kbd_clk),
-   .ps2_kbd_data(ps2_kbd_data)
+	.ps2_kbd_clk(ps2_kbd_clk),
+	.ps2_kbd_data(ps2_kbd_data),
+
+	.sd_conf(0),
+	.sd_sdhc(1),
+	.sd_lba(sd_lba),
+	.sd_rd({1'b0, sd_rd}),
+	.sd_wr({1'b0, sd_wr}),
+	.sd_ack(sd_ack),
+	.sd_buff_addr(sd_buff_addr),
+	.sd_dout_strobe(sd_buff_wr),
+	.sd_dout(sd_buff_dout),
+	.sd_din_strobe(sd_buff_rd),
+	.sd_din(sd_buff_din),
+	.img_mounted(img_mounted),
+	.img_size(img_size)
 );
 
 wire [7:0] joyA = joy_swap ? core_joy_B : core_joy_A;
@@ -120,6 +152,7 @@ wire [7:0] nes_joy_B = { joyB[0], joyB[1], joyB[2], joyB[3], joyB[7], joyB[6], j
   wire clk;
   clk clock_21mhz(.inclk0(CLOCK_27[0]), .c0(clk85), .c1(clk), .locked(clock_locked));
   assign SDRAM_CLK = clk85;
+  assign SDRAM_CKE = 1;
 
   // reset after download
   reg [7:0] download_reset_cnt;
@@ -238,7 +271,7 @@ initial begin
 end
 always @(posedge clk) nsf_data <= nsf_player[loader_addr[11:0]];
 
-assign LED = downloading ? 1'b0 : loader_fail ? led_blink[23] : 1'b1;
+assign LED = downloading ? 1'b0 : loader_fail ? led_blink[23] : ~bk_ena;
 
 wire reset_nes = (init_reset || buttons[1] || arm_reset || download_reset || loader_fail);
 
@@ -282,8 +315,6 @@ NES nes(
 	.ext_audio(ext_audio)
 );
 
-assign SDRAM_CKE         = 1'b1;
-
 // loader_write -> clock when data available
 reg loader_write_mem;
 reg [7:0] loader_write_data_mem;
@@ -308,35 +339,41 @@ end
 
 sdram sdram (
 	// interface to the MT48LC16M16 chip
-	.sd_data        ( SDRAM_DQ                 ),
-	.sd_addr        ( SDRAM_A                  ),
-	.sd_dqm         ( {SDRAM_DQMH, SDRAM_DQML} ),
-	.sd_cs          ( SDRAM_nCS                ),
-	.sd_ba          ( SDRAM_BA                 ),
-	.sd_we          ( SDRAM_nWE                ),
-	.sd_ras         ( SDRAM_nRAS               ),
-	.sd_cas         ( SDRAM_nCAS               ),
+	.SDRAM_DQ       ( SDRAM_DQ                 ),
+	.SDRAM_A        ( SDRAM_A                  ),
+	.SDRAM_DQML     ( SDRAM_DQML               ),
+	.SDRAM_DQMH     ( SDRAM_DQMH               ),
+	.SDRAM_nCS      ( SDRAM_nCS                ),
+	.SDRAM_BA       ( SDRAM_BA                 ),
+	.SDRAM_nWE      ( SDRAM_nWE                ),
+	.SDRAM_nRAS     ( SDRAM_nRAS               ),
+	.SDRAM_nCAS     ( SDRAM_nCAS               ),
 
 	// system interface
 	.clk            ( clk85                    ),
-	.clkref         ( nes_ce[1]                ),
-	.init           ( !clock_locked            ),
+	.init_n         ( clock_locked             ),
 
-	// cpu/chipset interface
-	.addrA     	    ( (downloading | loader_busy) ? {3'b000, loader_addr_mem} : {3'b000, memory_addr_cpu} ),
-	.addrB          ( {3'b000, memory_addr_ppu} ),
-	
-	.weA            ( loader_write_mem || memory_write_cpu ),
-	.weB            ( memory_write_ppu ),
+	// PPU
+	.addrA          ( {3'b000, memory_addr_ppu} ),
+	.weA            ( memory_write_ppu ),
+	.dinA           ( memory_dout_ppu ),
+	.oeA            ( memory_read_ppu ),
+	.doutA          ( memory_din_ppu  ),
 
-	.dinA           ( (downloading | loader_busy) ? loader_write_data_mem : memory_dout_cpu ),
-	.dinB           ( memory_dout_ppu ),
+	// CPU
+	.addrB     	    ( (downloading | loader_busy) ? {3'b000, loader_addr_mem} : {3'b000, memory_addr_cpu} ),
+	.weB            ( loader_write_mem || memory_write_cpu ),
+	.dinB           ( (downloading | loader_busy) ? loader_write_data_mem : memory_dout_cpu ),
+	.oeB            ( ~(downloading | loader_busy) & memory_read_cpu ),
+	.doutB          ( memory_din_cpu  ),
 
-	.oeA            ( ~(downloading | loader_busy) & memory_read_cpu ),
-	.doutA          ( memory_din_cpu  ),
-
-	.oeB            ( memory_read_ppu ),
-	.doutB          ( memory_din_ppu  )
+	// IO-Controller
+	.addrC          ( {7'b0001111, sram_addr} ),
+	.weC            ( sram_we ),
+	.dinC           ( sd_buff_dout ),
+	.oeC            ( sram_oe ),
+	.doutC          ( sd_buff_din ),
+	.ackC           ( sram_ack )
 );
 
 wire downloading;
@@ -447,5 +484,88 @@ keyboard keyboard (
 	.powerpad(powerpad),
 	.fds_eject(fds_eject)
 );
-			
+
+// SRAM handling
+
+reg  [17:0] sram_addr;
+reg         sram_we;
+reg         sram_oe;
+wire        sram_ack;
+reg         sram_ackD;
+reg         bk_ena;
+reg         bk_state;
+reg         bk_loading;
+reg  [11:0] sav_size;
+
+always @(posedge clk) begin
+
+	reg img_mountedD;
+	reg downloadingD;
+	reg bk_loadD, bk_saveD;
+	reg sd_ackD;
+
+	if (reset_nes) begin
+		bk_ena <= 0;
+		bk_state <= 0;
+		bk_loading <= 0;
+		sd_rd <= 0;
+		sd_wr <= 0;
+		sram_oe <= 0;
+		sram_we <= 0;
+	end else begin
+		sram_ackD <= sram_ack;
+		if (sram_ackD ^ sram_ack) { sram_oe, sram_we } <= 0;
+
+		img_mountedD <= img_mounted[0];
+		if (~img_mountedD & img_mounted[0]) begin
+			if (|img_size) begin
+				bk_ena <= 1;
+				sav_size <= img_size[20:9];
+			end else begin
+				bk_ena <= 0;
+			end
+		end
+
+		downloadingD <= downloading;
+		if (~downloadingD & downloading) bk_ena <= 0;
+
+		bk_loadD <= bk_load;
+		bk_saveD <= bk_save;
+		sd_ackD  <= sd_ack;
+
+		if (~sd_ackD & sd_ack) { sd_rd, sd_wr } <= 2'b00;
+
+		case (bk_state)
+		0:	if (bk_ena && ((~bk_loadD & bk_load) || (~bk_saveD & bk_save))) begin
+				bk_state <= 1;
+				sd_lba <= 0;
+				bk_loading <= bk_load;
+				sd_rd <= bk_load;
+				sd_wr <= ~bk_load;
+				sram_addr <= 18'h3ffff;
+			end
+		1:	if (sd_ackD & ~sd_ack) begin
+				if (sd_lba[11:0] == sav_size) begin
+					bk_loading <= 0;
+					bk_state <= 0;
+				end else begin
+					sd_lba <= sd_lba + 1'd1;
+					sd_rd  <= bk_loading;
+					sd_wr  <= ~bk_loading;
+				end
+			end
+		endcase
+
+		if (sd_buff_wr) begin
+			sram_we <= 1;
+			sram_addr <= sram_addr + 1'd1;
+		end
+
+		if (sd_buff_rd) begin
+			sram_oe <= 1;
+			sram_addr <= sram_addr + 1'd1;
+		end
+	end
+end
+
 endmodule
