@@ -46,6 +46,8 @@ module NES_mist(
 	input 		  UART_TX
 );
 
+`include "build_id.v"
+
 // the configuration string is returned to the io controller to allow
 // it to control the menu on the OSD 
 parameter CONF_STR = {
@@ -62,7 +64,7 @@ parameter CONF_STR = {
 			"O8,Palette,FCEUX,Unsaturated-V6;",
 			"O9B,Disk side,Auto,A,B,C,D;",
 			"T0,Reset;",
-			"V,v2.0;"
+			"V,v2.0-",`BUILD_DATE
 };
 
 wire [31:0] status;
@@ -267,7 +269,7 @@ GameLoader loader
 reg [7:0] nsf_player [4096];
 reg [7:0] nsf_data;
 initial begin
-  $readmemh("nsf.hex", nsf_player);
+  $readmemh("../nsf.hex", nsf_player);
 end
 always @(posedge clk) nsf_data <= nsf_player[loader_addr[11:0]];
 
