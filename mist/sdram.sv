@@ -39,23 +39,22 @@ module sdram (
 	input             clk,        // sdram clock
 
 	input [24:0]      addrA,      // 25 bit byte address
-	input             weA,        // cpu requests write
+	input             weA,        // ppu requests write
 	input [7:0]       dinA,       // data input from cpu
-	input             oeA,        // cpu requests data
+	input             oeA,        // ppu requests data
 	output reg [7:0]  doutA,      // data output to cpu
 
 	input [24:0]      addrB,      // 25 bit byte address
-	input             weB,        // ppu requests write
+	input             weB,        // cpu requests write
 	input [7:0]       dinB,       // data input from ppu
-	input             oeB,        // ppu requests data
+	input             oeB,        // cpu requests data
 	output reg [7:0]  doutB,      // data output to ppu
 
 	input [24:0]      addrC,      // 25 bit byte address
+	input             oeweC,      // IO-controller any request
 	input             weC,        // IO-controller requests write
 	input [7:0]       dinC,       // data input from IO-controller
-	input             oeC,        // IO-controller requests data
-	output reg [7:0]  doutC,      // data output to IO-controller
-	output reg        ackC
+	output reg [7:0]  doutC       // data output to IO-controller
 );
 
 parameter  MHZ = 16'd80; // 80 MHz default clock, set it to proper value to calculate refresh rate
@@ -161,10 +160,10 @@ wire       need_refresh = (refresh_cnt >= RFRSH_CYCLES);
 
 reg        oeA_d, weA_d;
 reg        oeB_d, weB_d;
-reg        oeC_d, weC_d;
+reg        oeweC_d;
 wire       reqA = (~oeA_d & oeA) || (~weA_d & weA);
 wire       reqB = (~oeB_d & oeB) || (~weB_d & weB);
-wire       reqC = (~oeC_d & oeC) || (~weC_d & weC);
+wire       reqC = oeweC ^ oeweC_d;
 
 always @(posedge clk) begin
 
@@ -202,18 +201,17 @@ always @(posedge clk) begin
 
 			oeA_d <= oeA_d & oeA; weA_d <= weA_d & weA;
 			oeB_d <= oeB_d & oeB; weB_d <= weB_d & weB;
-			oeC_d <= oeC_d & oeC; weC_d <= weC_d & weC;
+			oeweC_d <= oeweC;
 
-			if (reqA) begin
-				oeA_d <= oeA; weA_d <= weA;
+			if (reqC) begin
 				sd_cmd <= CMD_ACTIVE;
-				SDRAM_A <= addrA[22:10];
-				SDRAM_BA <= addrA[24:23];
-				addr_latch <= addrA;
-				{ oe_latch, we_latch } <= { oeA, weA };
-				ds <= { ~addrA[0], addrA[0] };
-				din_latch <= { dinA, dinA };
-				port <= PORTA;
+				SDRAM_A <= addrC[22:10];
+				SDRAM_BA <= addrC[24:23];
+				addr_latch <= addrC;
+				{ oe_latch, we_latch } <= { ~weC, weC };
+				ds <= { ~addrC[0], addrC[0] };
+				din_latch <= { dinC, dinC };
+				port <= PORTC;
 			end else if (reqB) begin
 				oeB_d <= oeB; weB_d <= weB;
 				sd_cmd <= CMD_ACTIVE;
@@ -224,16 +222,16 @@ always @(posedge clk) begin
 				ds <= { ~addrB[0], addrB[0] };
 				din_latch <= { dinB, dinB };
 				port <= PORTB;
-			end else if (reqC) begin
-				oeC_d <= oeC; weC_d <= weC;
+			end else if (reqA) begin
+				oeA_d <= oeA; weA_d <= weA;
 				sd_cmd <= CMD_ACTIVE;
-				SDRAM_A <= addrC[22:10];
-				SDRAM_BA <= addrC[24:23];
-				addr_latch <= addrC;
-				{ oe_latch, we_latch } <= { oeC, weC };
-				ds <= { ~addrC[0], addrC[0] };
-				din_latch <= { dinC, dinC };
-				port <= PORTC;
+				SDRAM_A <= addrA[22:10];
+				SDRAM_BA <= addrA[24:23];
+				addr_latch <= addrA;
+				{ oe_latch, we_latch } <= { oeA, weA };
+				ds <= { ~addrA[0], addrA[0] };
+				din_latch <= { dinA, dinA };
+				port <= PORTA;
 			end else if (need_refresh) begin
 				sd_cmd <= CMD_AUTO_REFRESH;
 				refresh_cnt <= 0;
@@ -244,10 +242,7 @@ always @(posedge clk) begin
 		if(t == STATE_CAS0 && (we_latch || oe_latch)) begin
 			sd_cmd <= we_latch?CMD_WRITE:CMD_READ;
 			{ SDRAM_DQMH, SDRAM_DQML } <= ~ds;
-			if (we_latch) begin
-				SDRAM_DQ <= din_latch;
-				if (port == PORTC) ackC <= ~ackC;
-			end
+			if (we_latch) SDRAM_DQ <= din_latch;
 			SDRAM_A <= { 4'b0010, addr_latch[9:1] };  // auto precharge
 			SDRAM_BA <= addr_latch[24:23];
 		end
@@ -257,7 +252,7 @@ always @(posedge clk) begin
 			case(port)
 			PORTA: doutA <= addr_latch[0] ? sd_data[7:0]:sd_data[15:8];
 			PORTB: doutB <= addr_latch[0] ? sd_data[7:0]:sd_data[15:8];
-			PORTC: begin doutC <= addr_latch[0] ? sd_data[7:0]:sd_data[15:8]; ackC <= ~ackC; end
+			PORTC: doutC <= addr_latch[0] ? sd_data[7:0]:sd_data[15:8];
 			default :;
 			endcase
 		end

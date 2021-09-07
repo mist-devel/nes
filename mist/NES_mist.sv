@@ -54,7 +54,6 @@ parameter CONF_STR = {
 			"NES;NESFDSNSF;",
 			"F,BIN,Load FDS BIOS;",
 			"S0,SAV,Mount SRAM;",
-			"TE,Load SRAM;",
 			"TF,Write SRAM;",
 			"O12,System Type,NTSC,PAL,Dendy;",
 			"O34,Scanlines,OFF,25%,50%,75%;",
@@ -78,7 +77,6 @@ wire mirroring_osd = status[6];
 wire overscan_osd = status[7];
 wire palette2_osd = status[8];
 wire [2:0] diskside_osd = status[11:9];
-wire bk_load = status[14];
 wire bk_save = status[15];
 
 wire scandoubler_disable;
@@ -370,12 +368,11 @@ sdram sdram (
 	.doutB          ( memory_din_cpu  ),
 
 	// IO-Controller
-	.addrC          ( {7'b0001111, sram_addr} ),
+	.addrC          ( {7'b0001111, sd_lba[8:0], sram_a} ),
+	.oeweC          ( sram_req ),
 	.weC            ( sram_we ),
 	.dinC           ( sd_buff_dout ),
-	.oeC            ( sram_oe ),
-	.doutC          ( sd_buff_din ),
-	.ackC           ( sram_ack )
+	.doutC          ( sd_buff_din )
 );
 
 wire downloading;
@@ -489,15 +486,15 @@ keyboard keyboard (
 
 // SRAM handling
 
-reg  [17:0] sram_addr;
 reg         sram_we;
-reg         sram_oe;
+reg         sram_req;
 wire        sram_ack;
-reg         sram_ackD;
 reg         bk_ena;
+reg         bk_load;
 reg         bk_state;
 reg         bk_loading;
 reg  [11:0] sav_size;
+reg   [8:0] sram_a;
 
 always @(posedge clk) begin
 
@@ -506,68 +503,56 @@ always @(posedge clk) begin
 	reg bk_loadD, bk_saveD;
 	reg sd_ackD;
 
-	if (reset_nes) begin
-		bk_ena <= 0;
-		bk_state <= 0;
-		bk_loading <= 0;
-		sd_rd <= 0;
-		sd_wr <= 0;
-		sram_oe <= 0;
-		sram_we <= 0;
-	end else begin
-		sram_ackD <= sram_ack;
-		if (sram_ackD ^ sram_ack) { sram_oe, sram_we } <= 0;
-
-		img_mountedD <= img_mounted[0];
-		if (~img_mountedD & img_mounted[0]) begin
-			if (|img_size) begin
-				bk_ena <= 1;
-				sav_size <= img_size[20:9];
-			end else begin
-				bk_ena <= 0;
-			end
-		end
-
-		downloadingD <= downloading;
-		if (~downloadingD & downloading) bk_ena <= 0;
-
-		bk_loadD <= bk_load;
-		bk_saveD <= bk_save;
-		sd_ackD  <= sd_ack;
-
-		if (~sd_ackD & sd_ack) { sd_rd, sd_wr } <= 2'b00;
-
-		case (bk_state)
-		0:	if (bk_ena && ((~bk_loadD & bk_load) || (~bk_saveD & bk_save))) begin
-				bk_state <= 1;
-				sd_lba <= 0;
-				bk_loading <= bk_load;
-				sd_rd <= bk_load;
-				sd_wr <= ~bk_load;
-				sram_addr <= 18'h3ffff;
-			end
-		1:	if (sd_ackD & ~sd_ack) begin
-				if (sd_lba[11:0] == sav_size) begin
-					bk_loading <= 0;
-					bk_state <= 0;
-				end else begin
-					sd_lba <= sd_lba + 1'd1;
-					sd_rd  <= bk_loading;
-					sd_wr  <= ~bk_loading;
-				end
-			end
-		endcase
-
-		if (sd_buff_wr) begin
-			sram_we <= 1;
-			sram_addr <= sram_addr + 1'd1;
-		end
-
-		if (sd_buff_rd) begin
-			sram_oe <= 1;
-			sram_addr <= sram_addr + 1'd1;
+	bk_load <= 0;
+	img_mountedD <= img_mounted[0];
+	if (~img_mountedD & img_mounted[0]) begin
+		if (|img_size) begin
+			bk_ena <= 1;
+			sav_size <= img_size[20:9];
+			bk_load <= 1;
+		end else begin
+			bk_ena <= 0;
 		end
 	end
+
+	downloadingD <= downloading;
+	if (~downloadingD & downloading) bk_ena <= 0;
+
+	bk_loadD <= bk_load;
+	bk_saveD <= bk_save;
+	sd_ackD  <= sd_ack;
+
+	if (~sd_ackD & sd_ack) { sd_rd, sd_wr } <= 2'b00;
+
+	case (bk_state)
+	0:	if (bk_ena && ((~bk_loadD & bk_load) || (~bk_saveD & bk_save))) begin
+			bk_state <= 1;
+			sd_lba <= 0;
+			bk_loading <= bk_load;
+			sd_rd <= bk_load;
+			sd_wr <= ~bk_load;
+		end
+	1:	if (sd_ackD & ~sd_ack) begin
+			if (sd_lba[11:0] == sav_size) begin
+				bk_loading <= 0;
+				bk_state <= 0;
+			end else begin
+				sd_lba <= sd_lba + 1'd1;
+				sd_rd  <= bk_loading;
+				sd_wr  <= ~bk_loading;
+			end
+		end
+	endcase
+end
+
+always @(negedge clk) begin
+
+	if (sd_buff_wr | sd_buff_rd) begin
+		sram_we <= sd_buff_wr;
+		sram_req <= ~sram_req;
+		sram_a <= sd_buff_addr;
+	end;
+
 end
 
 endmodule
