@@ -307,9 +307,9 @@ set_global_assignment -name SYSTEMVERILOG_FILE ../src/cart.sv
 set_global_assignment -name SYSTEMVERILOG_FILE ../src/apu.sv
 set_global_assignment -name SYSTEMVERILOG_FILE ../src/ppu.sv
 set_global_assignment -name VERILOG_FILE ../src/compat.v
-set_global_assignment -name VERILOG_FILE ../src/video.v
 set_global_assignment -name VERILOG_FILE ../src/dsp.v
 set_global_assignment -name VHDL_FILE ../src/dpram.vhd
+set_global_assignment -name SYSTEMVERILOG_FILE ../src/video.sv
 set_global_assignment -name SYSTEMVERILOG_FILE ../src/EEPROM_24C0x.sv
 set_global_assignment -name QIP_FILE ../src/OPLL/OPLL.qip
 set_global_assignment -name SYSTEMVERILOG_FILE ../src/mappers/VRC.sv

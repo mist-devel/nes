@@ -60,7 +60,7 @@ parameter CONF_STR = {
 			"O5,Joystick swap,OFF,ON;",
 			"O6,Invert mirroring,OFF,ON;",
 			"O7,Hide overscan,OFF,ON;",
-			"O8,Palette,FCEUX,Unsaturated-V6;",
+			"OCF,Palette,Digital Prime,Smooth,Unsat.,FCEUX,NES Classic,Composite,PC-10,PVM,Wavebeam,Real,Sony CXA,YUV,Greyscale,Rockman9,Ninten.;",
 			"O9B,Disk side,Auto,A,B,C,D;",
 			"T0,Reset;",
 			"V,v2.0-",`BUILD_DATE
@@ -75,7 +75,7 @@ wire [1:0] scanlines = status[4:3];
 wire joy_swap = status[5];
 wire mirroring_osd = status[6];
 wire overscan_osd = status[7];
-wire palette2_osd = status[8];
+wire [3:0] palette_osd = status[15:12];
 wire [2:0] diskside_osd = status[11:9];
 wire bk_save = status[15];
 
@@ -395,9 +395,9 @@ data_io data_io (
 );
 
 wire nes_hs, nes_vs;
-wire [4:0] nes_r;
-wire [4:0] nes_g;
-wire [4:0] nes_b;
+wire [7:0] nes_r;
+wire [7:0] nes_g;
+wire [7:0] nes_b;
 
 video video (
 	.clk(clk),
@@ -406,7 +406,7 @@ video video (
 	.count_h(cycle),
 	.pal_video(pal_video),
 	.overscan(overscan_osd),
-	.palette(palette2_osd),
+	.palette(palette_osd),
 
 	.sync_h(nes_hs),
 	.sync_v(nes_vs),
@@ -415,7 +415,7 @@ video video (
 	.b(nes_b)
 );
 
-mist_video #(.COLOR_DEPTH(5), .OSD_COLOR(3'd5), .SD_HCNT_WIDTH(10)) mist_video (
+mist_video #(.COLOR_DEPTH(6), .OSD_COLOR(3'd5), .SD_HCNT_WIDTH(10)) mist_video (
 	.clk_sys     ( clk        ),
 
 	// OSD SPI interface
@@ -441,9 +441,9 @@ mist_video #(.COLOR_DEPTH(5), .OSD_COLOR(3'd5), .SD_HCNT_WIDTH(10)) mist_video (
 	.blend       ( 1'b0       ),
 
 	// video in
-	.R           ( nes_r      ),
-	.G           ( nes_g      ),
-	.B           ( nes_b      ),
+	.R           ( nes_r[7:2] ),
+	.G           ( nes_g[7:2] ),
+	.B           ( nes_b[7:2] ),
 
 	.HSync       ( ~nes_hs    ),
 	.VSync       ( ~nes_vs    ),
