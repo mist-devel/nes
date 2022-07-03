@@ -84,10 +84,10 @@ wire ypbpr;
 wire no_csync;
 wire ps2_kbd_clk, ps2_kbd_data;
 
-wire [7:0] core_joy_A;
-wire [7:0] core_joy_B;
-wire [1:0] buttons;
-wire [1:0] switches;
+wire [31:0] core_joy_A;
+wire [31:0] core_joy_B;
+wire  [1:0] buttons;
+wire  [1:0] switches;
 
 reg  [31:0] sd_lba;
 reg         sd_rd = 0;
@@ -141,8 +141,8 @@ user_io #(.STRLEN($size(CONF_STR)>>3)) user_io(
 	.img_size(img_size)
 );
 
-wire [7:0] joyA = joy_swap ? core_joy_B : core_joy_A;
-wire [7:0] joyB = joy_swap ? core_joy_A : core_joy_B;
+wire [7:0] joyA = joy_swap ? core_joy_B[7:0] | core_joy_A[19:16] : core_joy_A[7:0] | core_joy_B[19:16];
+wire [7:0] joyB = joy_swap ? core_joy_A[7:0] | core_joy_B[19:16] : core_joy_B[7:0] | core_joy_A[19:16];
 
 wire [7:0] nes_joy_A = { joyA[0], joyA[1], joyA[2], joyA[3], joyA[7], joyA[6], joyA[5], joyA[4] } | kbd_joy0;
 wire [7:0] nes_joy_B = { joyB[0], joyB[1], joyB[2], joyB[3], joyB[7], joyB[6], joyB[5], joyB[4] } | kbd_joy1;
@@ -222,8 +222,8 @@ wire [7:0] nes_joy_B = { joyB[0], joyB[1], joyB[2], joyB[3], joyB[7], joyB[6], j
   wire [7:0] loader_write_data;
   wire loader_reset = !download_reset; //loader_conf[0];
   wire loader_write;
-  wire [31:0] loader_flags;
-  reg [31:0] mapper_flags;
+  wire [63:0] loader_flags;
+  reg  [63:0] mapper_flags;
   wire loader_done, loader_fail;
 	wire loader_busy;
 	wire type_bios = (menu_index == 2);

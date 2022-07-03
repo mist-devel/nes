@@ -17,7 +17,7 @@ module GameLoader
 	output [7:0]  mem_data,
 	output        mem_write,
 	output reg    bios_download,
-	output [31:0] mapper_flags,
+	output [63:0] mapper_flags,
 	output reg    busy,
 	output reg    done,
 	output reg    error,
@@ -72,14 +72,22 @@ wire is_dirty = !is_nes20 && ((ines[9][7:1] != 0)
 wire [7:0] mapper = {is_dirty ? 4'b0000 : ines[7][7:4], ines[6][7:4]};
 wire [7:0] ines2mapper = {is_nes20 ? ines[8] : 8'h00};
 wire [3:0] prgram = {is_nes20 ? ines[10][3:0] : 4'h0};
+wire [3:0] prg_nvram = (is_nes20 ? ines[10][7:4] : 4'h0);
 wire       piano = is_nes20 && (ines[15][5:0] == 6'h19);
 wire has_saves = ines[6][1];
 
-// ines[6][0] is mirroring
-// ines[6][3] is 4 screen mode
-// ines[8][7:4] is NES 2.0 submapper
-// ines[10][3:0] is NES 2.0 PRG RAM shift size (64 << size)
-assign mapper_flags = {1'b0, piano, prgram, has_saves, ines2mapper, ines[6][3], has_chr_ram, ines[6][0] ^ invert_mirroring, chr_size, prg_size, mapper};
+assign mapper_flags[63:35] = 'd0;
+assign mapper_flags[34:31] = prg_nvram; //NES 2.0 Save RAM shift size (64 << size)
+assign mapper_flags[30]    = piano;
+assign mapper_flags[29:26] = prgram; //NES 2.0 PRG RAM shift size (64 << size)
+assign mapper_flags[25]    = has_saves;
+assign mapper_flags[24:17] = ines2mapper; //NES 2.0 submapper
+assign mapper_flags[16]    = ines[6][3]; // 4 screen mode
+assign mapper_flags[15]    = has_chr_ram;
+assign mapper_flags[14]    = ines[6][0] ^ invert_mirroring; // mirroring
+assign mapper_flags[13:11] = chr_size;
+assign mapper_flags[10:8]  = prg_size;
+assign mapper_flags[7:0]   = mapper;
 
 reg [3:0] clearclk; //Wait for SDRAM
 reg copybios;
