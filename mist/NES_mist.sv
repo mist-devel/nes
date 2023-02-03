@@ -141,11 +141,21 @@ user_io #(.STRLEN($size(CONF_STR)>>3)) user_io(
 	.img_size(img_size)
 );
 
+// 27e6/2^20 = ~25.7hz
+reg [19:0] turbo_cnt = 0;
+always @(posedge clk) begin
+    turbo_cnt <= turbo_cnt + 1'd1;
+end
+
+// Y/X act as turbo B/A buttons
+wire [5:4] joyA_t = {turbo_cnt[19],turbo_cnt[19]} & (joy_swap ? core_joy_B[9:8] : core_joy_A[9:8]);
+wire [5:4] joyB_t = {turbo_cnt[19],turbo_cnt[19]} & (joy_swap ? core_joy_A[9:8] : core_joy_B[9:8]);
+
 wire [7:0] joyA = joy_swap ? core_joy_B[7:0] | core_joy_A[19:16] : core_joy_A[7:0] | core_joy_B[19:16];
 wire [7:0] joyB = joy_swap ? core_joy_A[7:0] | core_joy_B[19:16] : core_joy_B[7:0] | core_joy_A[19:16];
 
-wire [7:0] nes_joy_A = { joyA[0], joyA[1], joyA[2], joyA[3], joyA[7], joyA[6], joyA[5], joyA[4] } | kbd_joy0;
-wire [7:0] nes_joy_B = { joyB[0], joyB[1], joyB[2], joyB[3], joyB[7], joyB[6], joyB[5], joyB[4] } | kbd_joy1;
+wire [7:0] nes_joy_A = { joyA[0], joyA[1], joyA[2], joyA[3], joyA[7], joyA[6], joyA[5] | joyA_t[5], joyA[4] | joyA_t[4] } | kbd_joy0;
+wire [7:0] nes_joy_B = { joyB[0], joyB[1], joyB[2], joyB[3], joyB[7], joyB[6], joyB[5] | joyB_t[5], joyB[4] | joyB_t[4] } | kbd_joy1;
  
   wire clock_locked;
   wire clk85;
