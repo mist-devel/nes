@@ -60,6 +60,7 @@ parameter CONF_STR = {
 			"O5,Joystick swap,OFF,ON;",
 			"O6,Invert mirroring,OFF,ON;",
 			"O7,Hide overscan,OFF,ON;",
+			"O8,Famicon keyboard,OFF,ON;",
 			"OCF,Palette,Digital Prime,Smooth,Unsat.,FCEUX,NES Classic,Composite,PC-10,PVM,Wavebeam,Real,Sony CXA,YUV,Greyscale,Rockman9,Ninten.;",
 			"O9B,Disk side,Auto,A,B,C,D;",
 			"T0,Reset;",
@@ -75,6 +76,7 @@ wire [1:0] scanlines = status[4:3];
 wire joy_swap = status[5];
 wire mirroring_osd = status[6];
 wire overscan_osd = status[7];
+wire famicon_kbd = status[8];
 wire [3:0] palette_osd = status[15:12];
 wire [2:0] diskside_osd = status[11:9];
 wire bk_save = status[15];
@@ -82,12 +84,15 @@ wire bk_save = status[15];
 wire scandoubler_disable;
 wire ypbpr;
 wire no_csync;
-wire ps2_kbd_clk, ps2_kbd_data;
 
 wire [31:0] core_joy_A;
 wire [31:0] core_joy_B;
 wire  [1:0] buttons;
 wire  [1:0] switches;
+wire        key_strobe;
+wire        key_pressed;
+wire        key_extended;
+wire  [7:0] key_code;
 
 reg  [31:0] sd_lba;
 reg         sd_rd = 0;
@@ -123,8 +128,10 @@ user_io #(.STRLEN($size(CONF_STR)>>3)) user_io(
 
 	.status(status),
 
-	.ps2_kbd_clk(ps2_kbd_clk),
-	.ps2_kbd_data(ps2_kbd_data),
+	.key_strobe(key_strobe),
+	.key_pressed(key_pressed),
+	.key_extended(key_extended),
+	.key_code(key_code),
 
 	.sd_conf(0),
 	.sd_sdhc(1),
@@ -154,8 +161,8 @@ wire [5:4] joyB_t = {turbo_cnt[19],turbo_cnt[19]} & (joy_swap ? core_joy_A[9:8] 
 wire [7:0] joyA = joy_swap ? core_joy_B[7:0] | core_joy_A[19:16] : core_joy_A[7:0] | core_joy_B[19:16];
 wire [7:0] joyB = joy_swap ? core_joy_A[7:0] | core_joy_B[19:16] : core_joy_B[7:0] | core_joy_A[19:16];
 
-wire [7:0] nes_joy_A = { joyA[0], joyA[1], joyA[2], joyA[3], joyA[7], joyA[6], joyA[5] | joyA_t[5], joyA[4] | joyA_t[4] } | kbd_joy0;
-wire [7:0] nes_joy_B = { joyB[0], joyB[1], joyB[2], joyB[3], joyB[7], joyB[6], joyB[5] | joyB_t[5], joyB[4] | joyB_t[4] } | kbd_joy1;
+wire [7:0] nes_joy_A = { joyA[0], joyA[1], joyA[2], joyA[3], joyA[7], joyA[6], joyA[5] | joyA_t[5], joyA[4] | joyA_t[4] };
+wire [7:0] nes_joy_B = { joyB[0], joyB[1], joyB[2], joyB[3], joyB[7], joyB[6], joyB[5] | joyB_t[5], joyB[4] | joyB_t[4] };
  
   wire clock_locked;
   wire clk85;
@@ -184,8 +191,10 @@ wire [7:0] nes_joy_B = { joyB[0], joyB[1], joyB[2], joyB[3], joyB[7], joyB[6], j
   wire [8:0] scanline;
   wire [15:0] sample;
   wire [5:0] color;
-  wire joypad_strobe;
+  wire [2:0] joypad_out;
+  wire joypad_strobe = joypad_out[0];
   wire [1:0] joypad_clock;
+  wire [4:0] joypad1_data, joypad2_data;
   wire [21:0] memory_addr_cpu, memory_addr_ppu;
   wire memory_read_cpu, memory_read_ppu;
   wire memory_write_cpu, memory_write_ppu;
@@ -198,6 +207,26 @@ wire [7:0] nes_joy_B = { joyB[0], joyB[1], joyB[2], joyB[3], joyB[7], joyB[6], j
   wire [1:0] dbgctr;
 
   wire [1:0] nes_ce;
+  wire mic = 0;
+  
+wire [11:0] powerpad;
+wire [3:0] key_out;
+wire fds_eject;
+
+keyboard keyboard (
+	.clk(clk),
+	.reset(reset_nes),
+	.powerpad_mode(!famicon_kbd),
+	.posit(1'b1),
+	.key_strobe(key_strobe),
+	.key_pressed(key_pressed),
+	.key_extended(key_extended),
+	.key_code(key_code),
+	.reg_4016(joypad_out),
+	.reg_4017(key_out),
+	.powerpad(powerpad),
+	.fds_eject(fds_eject)
+);
 
 	always @(posedge clk) begin
 		if (reset_nes) begin
@@ -223,8 +252,11 @@ wire [7:0] nes_joy_B = { joyB[0], joyB[1], joyB[2], joyB[3], joyB[7], joyB[6], j
 			end	
 			last_joypad_clock <= joypad_clock;
 		end
-  end
-  
+	end
+
+	assign joypad1_data = {2'b0, mic, 1'b0, joypad_bits[0]};
+	assign joypad2_data = {famicon_kbd ? key_out : {powerpad_d4[0],powerpad_d3[0], 2'b00}, joypad_bits2[0]};
+	
   // Loader
   wire [7:0] loader_input =  (loader_busy && !downloading) ? nsf_data : ioctl_dout;
   wire       loader_clk;
@@ -300,10 +332,10 @@ NES nes(
 	.mapper_flags(mapper_flags),
 	.sample(sample),
 	.color(color),
-	.joypad_strobe(joypad_strobe),
+	.joypad_out(joypad_out),
 	.joypad_clock(joypad_clock),
-	.joypad_data({powerpad_d4[0],powerpad_d3[0],joypad_bits2[0],joypad_bits[0]}),
-	.mic(),
+	.joypad1_data(joypad1_data),
+	.joypad2_data(joypad2_data),
 	.fds_busy(),
 	.fds_eject(fds_eject),
 	.diskside_req(diskside_req),
@@ -474,24 +506,6 @@ sigma_delta_dac sigma_delta_dac (
 	.DACin(sample[15:8]),
 	.CLK(clk),
 	.RESET(reset_nes)
-);
-
-wire [7:0] kbd_joy0;
-wire [7:0] kbd_joy1;
-wire [11:0] powerpad;
-wire fds_eject;
-
-keyboard keyboard (
-	.clk(clk),
-	.reset(reset_nes),
-	.ps2_kbd_clk(ps2_kbd_clk),
-	.ps2_kbd_data(ps2_kbd_data),
-
-	.joystick_0(kbd_joy0),
-	.joystick_1(kbd_joy1),
-	
-	.powerpad(powerpad),
-	.fds_eject(fds_eject)
 );
 
 // SRAM handling

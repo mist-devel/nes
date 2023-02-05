@@ -26,7 +26,7 @@ set_global_assignment -name DEVICE EP3C25E144C8
 set_global_assignment -name TOP_LEVEL_ENTITY NES_mist
 set_global_assignment -name ORIGINAL_QUARTUS_VERSION 7.2
 set_global_assignment -name PROJECT_CREATION_TIME_DATE "22:27:29  OCTOBER 30, 2007"
-set_global_assignment -name LAST_QUARTUS_VERSION "13.1 SP4.26"
+set_global_assignment -name LAST_QUARTUS_VERSION 13.1
 set_global_assignment -name USE_GENERATED_PHYSICAL_CONSTRAINTS OFF -section_id eda_palace
 set_global_assignment -name DEVICE_FILTER_PIN_COUNT 144
 set_global_assignment -name POWER_PRESET_COOLING_SOLUTION "NO HEAT SINK WITH STILL AIR"
@@ -123,7 +123,7 @@ set_location_assignment PIN_43 -to SDRAM_CLK
 set_global_assignment -name CYCLONEII_OPTIMIZATION_TECHNIQUE BALANCED
 set_global_assignment -name SMART_RECOMPILE ON
 set_global_assignment -name ENABLE_SIGNALTAP OFF
-set_global_assignment -name USE_SIGNALTAP_FILE ../out/sav.stp
+set_global_assignment -name USE_SIGNALTAP_FILE out/cpu.stp
 set_global_assignment -name PHYSICAL_SYNTHESIS_COMBO_LOGIC ON
 set_global_assignment -name PHYSICAL_SYNTHESIS_REGISTER_DUPLICATION ON
 set_global_assignment -name PHYSICAL_SYNTHESIS_EFFORT NORMAL
@@ -295,37 +295,11 @@ set_global_assignment -name ENABLE_NCE_PIN OFF
 set_global_assignment -name ENABLE_BOOT_SEL_PIN OFF
 set_global_assignment -name QIP_FILE "mist-modules/mist.qip"
 set_global_assignment -name SYSTEMVERILOG_FILE NES_mist.sv
-set_global_assignment -name VERILOG_FILE ps2_intf.v
-set_global_assignment -name VERILOG_FILE keyboard.v
 set_global_assignment -name VERILOG_FILE sigma_delta_dac.v
 set_global_assignment -name VERILOG_FILE clk.v
 set_global_assignment -name SYSTEMVERILOG_FILE sdram.sv
+set_global_assignment -name QIP_FILE ../src/nes.qip
 set_global_assignment -name SDC_FILE constraints.sdc
-set_global_assignment -name SYSTEMVERILOG_FILE ../src/GameLoader.sv
-set_global_assignment -name VERILOG_FILE ../src/nes.v
-set_global_assignment -name SYSTEMVERILOG_FILE ../src/cart.sv
-set_global_assignment -name SYSTEMVERILOG_FILE ../src/apu.sv
-set_global_assignment -name SYSTEMVERILOG_FILE ../src/ppu.sv
-set_global_assignment -name VERILOG_FILE ../src/compat.v
-set_global_assignment -name VERILOG_FILE ../src/dsp.v
-set_global_assignment -name VHDL_FILE ../src/dpram.vhd
-set_global_assignment -name SYSTEMVERILOG_FILE ../src/video.sv
-set_global_assignment -name SYSTEMVERILOG_FILE ../src/EEPROM_24C0x.sv
-set_global_assignment -name QIP_FILE ../src/OPLL/OPLL.qip
-set_global_assignment -name SYSTEMVERILOG_FILE ../src/mappers/VRC.sv
-set_global_assignment -name SYSTEMVERILOG_FILE ../src/mappers/Sunsoft.sv
-set_global_assignment -name SYSTEMVERILOG_FILE ../src/mappers/Sachen.sv
-set_global_assignment -name SYSTEMVERILOG_FILE ../src/mappers/Namco.sv
-set_global_assignment -name SYSTEMVERILOG_FILE ../src/mappers/MMC5.sv
-set_global_assignment -name SYSTEMVERILOG_FILE ../src/mappers/MMC3.sv
-set_global_assignment -name SYSTEMVERILOG_FILE ../src/mappers/MMC2.sv
-set_global_assignment -name SYSTEMVERILOG_FILE ../src/mappers/MMC1.sv
-set_global_assignment -name SYSTEMVERILOG_FILE ../src/mappers/misc.sv
-set_global_assignment -name SYSTEMVERILOG_FILE ../src/mappers/JYCompany.sv
-set_global_assignment -name SYSTEMVERILOG_FILE ../src/mappers/generic.sv
-set_global_assignment -name SYSTEMVERILOG_FILE ../src/mappers/FDS.sv
-set_global_assignment -name VERILOG_FILE ../src/mappers/iir_filter.v
-set_global_assignment -name QIP_FILE ../src/T65/T65.qip
 set_global_assignment -name SIGNALTAP_FILE out/loader.stp
 set_global_assignment -name SIGNALTAP_FILE out/cpu.stp
 set_global_assignment -name SIGNALTAP_FILE ../out/sav.stp
