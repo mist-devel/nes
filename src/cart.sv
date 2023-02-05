@@ -21,7 +21,7 @@ module cart_top (
 	input             ppu_ce,
 	input             reset,
 	input      [19:0] ppuflags,       // Misc flags from PPU for MMC5 cheating
-	input      [31:0] flags,          // Misc flags from ines header {prg_size(3), chr_size(3), mapper(8)}
+	input      [63:0] flags,          // Misc flags from ines header {prg_size(3), chr_size(3), mapper(8)}
 	input      [15:0] prg_ain,        // Better known as "CPU Address in"
 	output reg [21:0] prg_aout,       // PRG Input / Output Address Lines
 	input             prg_read,       // PRG Read / write signals
@@ -1843,11 +1843,11 @@ vrc6_mixed snd_vrc6 (
 
 wire [6:0] prg_mask;
 wire [6:0] chr_mask;
-wire [255:0] me;
+wire [1023:0] me;
 
 always @* begin
-	me = 256'd0;
-	me[flags[7:0]] = 1'b1;
+	me = 1023'd0;
+	me[{flags[18:17],flags[7:0]}] = 1'b1;
 
 	case(flags[10:8])
 		0: prg_mask = 7'b0000000;
