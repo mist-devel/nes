@@ -1617,6 +1617,40 @@ JYCompany jycompany(
 );
 
 //*****************************************************************************//
+// Name   : Mapper 91                                                          //
+// Mappers: 91                                                                 //
+// Status : Working (Needs testing)                                            //
+// Notes  :                                                                    //
+// Games  : Street Fighter 3, Mortal Kombat II, Dragon Ball Z 2,               //
+//          Mario & Sonic 2,  Mario Rider,                                     //
+//          1995 Super HIK 4-in-1 (JY-016), 1995 Super HiK 4-in-1 (JY-017)     //
+//*****************************************************************************//
+Mapper91 map91(
+	.clk        (clk),
+	.ce         (ce),
+	.enable     (me[91]),
+	.flags      (flags),
+	.prg_ain    (prg_ain),
+	.prg_aout_b (prg_addr_b),
+	.prg_read   (prg_read),
+	.prg_write  (prg_write),
+	.prg_din    (prg_din),
+	.prg_dout_b (prg_dout_b),
+	.prg_allow_b(prg_allow_b),
+	.chr_ain    (chr_ain),
+	.chr_aout_b (chr_addr_b),
+	.chr_read   (chr_read),
+	.chr_allow_b(chr_allow_b),
+	.vram_a10_b (vram_a10_b),
+	.vram_ce_b  (vram_ce_b),
+	.irq_b      (irq_b),
+	.flags_out_b(flags_out_b),
+	.audio_in   (audio_in),
+	.audio_b    (audio_out_b),
+	.chr_ain_o  (chr_ain)
+);
+
+//*****************************************************************************//
 // Name   : Mapper 225                                                         //
 // Mappers: 225, 255                                                           //
 // Status : Working                                                            //
