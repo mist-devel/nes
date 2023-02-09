@@ -4,7 +4,6 @@
 module keyboard (
 	input        clk,
 	input        reset,
-	input        powerpad_mode,
 	input        posit,
 	input        key_strobe,
 	input        key_pressed,
@@ -134,22 +133,20 @@ always @(posedge clk) begin
 
 	if(key_strobe) begin
 
-		
-		if (powerpad_mode)
-			casex(code)
-				9'H024: powerpad[0] <= pressed; // E
-				9'H02D: powerpad[1] <= pressed; // R
-				9'H02C: powerpad[2] <= pressed; // T
-				9'H035: powerpad[3] <= pressed; // Y
-				9'H023: powerpad[4] <= pressed; // D
-				9'H02B: powerpad[5] <= pressed; // F
-				9'H034: powerpad[6] <= pressed; // G
-				9'H033: powerpad[7] <= pressed; // H
-				9'H021: powerpad[8] <= pressed; // C
-				9'H02A: powerpad[9] <= pressed; // V
-				9'H032: powerpad[10] <= pressed;// B
-				9'H031: powerpad[11] <= pressed;// N
-			endcase
+		casex(code)
+			9'H024: powerpad[0] <= pressed; // E
+			9'H02D: powerpad[1] <= pressed; // R
+			9'H02C: powerpad[2] <= pressed; // T
+			9'H035: powerpad[3] <= pressed; // Y
+			9'H023: powerpad[4] <= pressed; // D
+			9'H02B: powerpad[5] <= pressed; // F
+			9'H034: powerpad[6] <= pressed; // G
+			9'H033: powerpad[7] <= pressed; // H
+			9'H021: powerpad[8] <= pressed; // C
+			9'H02A: powerpad[9] <= pressed; // V
+			9'H032: powerpad[10] <= pressed;// B
+			9'H031: powerpad[11] <= pressed;// N
+		endcase
 
 		casex(code)
 			'hX75: btn_up    <= pressed;
@@ -240,7 +237,7 @@ always @(posedge clk) begin
 	if (reset) begin
 		row <= 0;
 		last_col <= 0;
-	end else if (!powerpad_mode) begin
+	end else begin
 		last_col <= reg_4016[1];
 		if (!reg_4016[1] && last_col)
 			row <= (row == 4'd9) ? 4'd0 : row + 1'd1;
