@@ -3,48 +3,110 @@
 
 `timescale 1ns / 1ps
 
-module NES_mist(  
-	// clock input
-  input [1:0]   CLOCK_27, // 27 MHz
-  output LED,
-  
-  // VGA
-  output         VGA_HS, // VGA H_SYNC
-  output         VGA_VS, // VGA V_SYNC
-  output [ 5:0]  VGA_R, // VGA Red[5:0]
-  output [ 5:0]  VGA_G, // VGA Green[5:0]
-  output [ 5:0]  VGA_B, // VGA Blue[5:0]
-  
-  // SDRAM                                                                                                                                                         
-  inout [ 16-1:0]  SDRAM_DQ, // SDRAM Data bus 16 Bits                                                                                                        
-  output [ 13-1:0] SDRAM_A, // SDRAM Address bus 13 Bits                                                                                                      
-  output           SDRAM_DQML, // SDRAM Low-byte Data Mask                                                                                                    
-  output           SDRAM_DQMH, // SDRAM High-byte Data Mask                                                                                                   
-  output           SDRAM_nWE, // SDRAM Write Enable                                                                                                           
-  output           SDRAM_nCAS, // SDRAM Column Address Strobe                                                                                                 
-  output           SDRAM_nRAS, // SDRAM Row Address Strobe                                                                                                    
-  output           SDRAM_nCS, // SDRAM Chip Select                                                                                                            
-  output [ 2-1:0]  SDRAM_BA, // SDRAM Bank Address                                                                                                            
-  output           SDRAM_CLK, // SDRAM Clock                                                                                                                  
-  output           SDRAM_CKE, // SDRAM Clock Enable                                                                                                             
+module NES_mist(
+	input         CLOCK_27,
+`ifdef USE_CLOCK_50
+	input         CLOCK_50,
+`endif
 
-  // audio
-  output           AUDIO_L,
-  output           AUDIO_R,
- 
-  // SPI
-  inout          SPI_DO,
-  input          SPI_DI,
-  input          SPI_SCK,
-  input          SPI_SS2,    // data_io
-  input          SPI_SS3,    // OSD
-  input          SPI_SS4,    // unused in this core
-  input          CONF_DATA0, // SPI_SS for user_io
+	output        LED,
+	output [VGA_BITS-1:0] VGA_R,
+	output [VGA_BITS-1:0] VGA_G,
+	output [VGA_BITS-1:0] VGA_B,
+	output        VGA_HS,
+	output        VGA_VS,
 
-   // UART
-	input 		  UART_RX,
-	input 		  UART_TX
+	input         SPI_SCK,
+	inout         SPI_DO,
+	input         SPI_DI,
+	input         SPI_SS2,    // data_io
+	input         SPI_SS3,    // OSD
+	input         CONF_DATA0, // SPI_SS for user_io
+
+`ifdef USE_QSPI
+	input         QSCK,
+	input         QCSn,
+	inout   [3:0] QDAT,
+`endif
+`ifndef NO_DIRECT_UPLOAD
+	input         SPI_SS4,
+`endif
+
+	output [12:0] SDRAM_A,
+	inout  [15:0] SDRAM_DQ,
+	output        SDRAM_DQML,
+	output        SDRAM_DQMH,
+	output        SDRAM_nWE,
+	output        SDRAM_nCAS,
+	output        SDRAM_nRAS,
+	output        SDRAM_nCS,
+	output  [1:0] SDRAM_BA,
+	output        SDRAM_CLK,
+	output        SDRAM_CKE,
+
+`ifdef DUAL_SDRAM
+	output [12:0] SDRAM2_A,
+	inout  [15:0] SDRAM2_DQ,
+	output        SDRAM2_DQML,
+	output        SDRAM2_DQMH,
+	output        SDRAM2_nWE,
+	output        SDRAM2_nCAS,
+	output        SDRAM2_nRAS,
+	output        SDRAM2_nCS,
+	output  [1:0] SDRAM2_BA,
+	output        SDRAM2_CLK,
+	output        SDRAM2_CKE,
+`endif
+
+	output        AUDIO_L,
+	output        AUDIO_R,
+`ifdef I2S_AUDIO
+	output        I2S_BCK,
+	output        I2S_LRCK,
+	output        I2S_DATA,
+`endif
+`ifdef USE_AUDIO_IN
+	input         AUDIO_IN,
+`endif
+	input         UART_RX,
+	output        UART_TX
+
 );
+
+`ifdef NO_DIRECT_UPLOAD
+localparam bit DIRECT_UPLOAD = 0;
+wire SPI_SS4 = 1;
+`else
+localparam bit DIRECT_UPLOAD = 1;
+`endif
+
+`ifdef USE_QSPI
+localparam bit QSPI = 1;
+assign QDAT = 4'hZ;
+`else
+localparam bit QSPI = 0;
+`endif
+
+`ifdef VGA_8BIT
+localparam VGA_BITS = 8;
+`else
+localparam VGA_BITS = 6;
+`endif
+
+// remove this if the 2nd chip is actually used
+`ifdef DUAL_SDRAM
+assign SDRAM2_A = 13'hZZZZ;
+assign SDRAM2_BA = 0;
+assign SDRAM2_DQML = 0;
+assign SDRAM2_DQMH = 0;
+assign SDRAM2_CKE = 0;
+assign SDRAM2_CLK = 0;
+assign SDRAM2_nCS = 1;
+assign SDRAM2_DQ = 16'hZZZZ;
+assign SDRAM2_nCAS = 1;
+assign SDRAM2_nRAS = 1;
+assign SDRAM2_nWE = 1;
+`endif
 
 `include "build_id.v"
 
@@ -167,7 +229,7 @@ wire [7:0] nes_joy_B = { joyB[0], joyB[1], joyB[2], joyB[3], joyB[7], joyB[6], j
   wire clock_locked;
   wire clk85;
   wire clk;
-  clk clock_21mhz(.inclk0(CLOCK_27[0]), .c0(clk85), .c1(clk), .locked(clock_locked));
+  clk clock_21mhz(.inclk0(CLOCK_27), .c0(clk85), .c1(clk), .locked(clock_locked));
   assign SDRAM_CLK = clk85;
   assign SDRAM_CKE = 1;
 
@@ -216,7 +278,6 @@ wire fds_eject;
 keyboard keyboard (
 	.clk(clk),
 	.reset(reset_nes),
-	.powerpad_mode(!famicon_kbd),
 	.posit(1'b1),
 	.key_strobe(key_strobe),
 	.key_pressed(key_pressed),
@@ -457,7 +518,7 @@ video video (
 	.b(nes_b)
 );
 
-mist_video #(.COLOR_DEPTH(6), .OSD_COLOR(3'd5), .SD_HCNT_WIDTH(10)) mist_video (
+mist_video #(.COLOR_DEPTH(8), .OSD_COLOR(3'd5), .SD_HCNT_WIDTH(10), .OUT_COLOR_DEPTH(VGA_BITS)) mist_video (
 	.clk_sys     ( clk        ),
 
 	// OSD SPI interface
@@ -483,9 +544,9 @@ mist_video #(.COLOR_DEPTH(6), .OSD_COLOR(3'd5), .SD_HCNT_WIDTH(10)) mist_video (
 	.blend       ( 1'b0       ),
 
 	// video in
-	.R           ( nes_r[7:2] ),
-	.G           ( nes_g[7:2] ),
-	.B           ( nes_b[7:2] ),
+	.R           ( nes_r      ),
+	.G           ( nes_g      ),
+	.B           ( nes_b      ),
 
 	.HSync       ( ~nes_hs    ),
 	.VSync       ( ~nes_vs    ),

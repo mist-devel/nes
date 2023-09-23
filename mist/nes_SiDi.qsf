@@ -42,12 +42,7 @@ set_global_assignment -name FORCE_CONFIGURATION_VCCIO ON
 set_global_assignment -name STRATIX_DEVICE_IO_STANDARD "3.3-V LVTTL"
 
 set_location_assignment PIN_G1 -to LED
-set_location_assignment PIN_22 -to CLOCK_50[0]
-set_location_assignment PIN_23 -to CLOCK_50[1]
-set_location_assignment PIN_128 -to CLOCK_32[0]
-set_location_assignment PIN_129 -to CLOCK_32[1]
-set_location_assignment PIN_E1 -to CLOCK_27[0]
-set_location_assignment PIN_M2 -to CLOCK_27[1]
+set_location_assignment PIN_E1 -to CLOCK_27
 set_location_assignment PIN_P16 -to VGA_R[5]
 set_location_assignment PIN_P15 -to VGA_R[4]
 set_location_assignment PIN_R16 -to VGA_R[3]
