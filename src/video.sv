@@ -12,6 +12,8 @@ module video(
 
 	output reg   sync_h,
 	output reg   sync_v,
+	output hblank,
+	output vblank,
 	output [7:0] r,
 	output [7:0] g,
 	output [7:0] b
@@ -188,6 +190,8 @@ always @(posedge clk) begin
 end
 
 wire [23:0] pixel_v = (!hpicture || !vpicture) ? 24'd0 : pixel;
+assign hblank = !hpicture;
+assign vblank = !vpicture;
 
 // display overlay to hide overscan area
 // based on Mario3, DoubleDragon2, Shadow of the Ninja

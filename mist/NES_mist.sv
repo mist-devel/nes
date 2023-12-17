@@ -16,6 +16,23 @@ module NES_mist(
 	output        VGA_HS,
 	output        VGA_VS,
 
+`ifdef USE_HDMI
+	output        HDMI_RST,
+	output  [7:0] HDMI_R,
+	output  [7:0] HDMI_G,
+	output  [7:0] HDMI_B,
+	output        HDMI_HS,
+	output        HDMI_VS,
+	output        HDMI_PCLK,
+	output        HDMI_DE,
+	inout         HDMI_SDA,
+	inout         HDMI_SCL,
+	input         HDMI_INT,
+	output        HDMI_BCK,
+	output        HDMI_LRCK,
+	output        HDMI_AUDIO,
+`endif
+
 	input         SPI_SCK,
 	inout         SPI_DO,
 	input         SPI_DI,
@@ -65,6 +82,9 @@ module NES_mist(
 	output        I2S_LRCK,
 	output        I2S_DATA,
 `endif
+`ifdef SPDIF_AUDIO
+	output        SPDIF,
+`endif
 `ifdef USE_AUDIO_IN
 	input         AUDIO_IN,
 `endif
@@ -93,6 +113,27 @@ localparam VGA_BITS = 8;
 localparam VGA_BITS = 6;
 `endif
 
+`ifdef USE_HDMI
+localparam bit HDMI = 1;
+assign HDMI_RST = 1'b1;
+`else
+localparam bit HDMI = 0;
+`endif
+
+`ifdef BIG_OSD
+localparam bit BIG_OSD = 1;
+`define SEP "-;",
+`else
+localparam bit BIG_OSD = 0;
+`define SEP
+`endif
+
+`ifdef USE_AUDIO_IN
+localparam bit USE_AUDIO_IN = 1;
+`else
+localparam bit USE_AUDIO_IN = 0;
+`endif
+
 // remove this if the 2nd chip is actually used
 `ifdef DUAL_SDRAM
 assign SDRAM2_A = 13'hZZZZ;
@@ -116,15 +157,19 @@ parameter CONF_STR = {
 			"NES;NESFDSNSF;",
 			"F,BIN,Load FDS BIOS;",
 			"S0,SAV,Mount SRAM;",
-			"TF,Write SRAM;",
+			"TH,Write SRAM;",
+			`SEP
 			"O12,System Type,NTSC,PAL,Dendy;",
 			"O34,Scanlines,OFF,25%,50%,75%;",
 			"O5,Joystick swap,OFF,ON;",
 			"O6,Invert mirroring,OFF,ON;",
 			"O7,Hide overscan,OFF,ON;",
-			"O8,Famicon keyboard,OFF,ON;",
+			"OG,Blend,OFF,ON;",
 			"OCF,Palette,Digital Prime,Smooth,Unsat.,FCEUX,NES Classic,Composite,PC-10,PVM,Wavebeam,Real,Sony CXA,YUV,Greyscale,Rockman9,Ninten.;",
+			`SEP
+			"O8,Famicon keyboard,OFF,ON;",
 			"O9B,Disk side,Auto,A,B,C,D;",
+			`SEP
 			"T0,Reset;",
 			"V,v2.0-",`BUILD_DATE
 };
@@ -141,7 +186,8 @@ wire overscan_osd = status[7];
 wire famicon_kbd = status[8];
 wire [3:0] palette_osd = status[15:12];
 wire [2:0] diskside_osd = status[11:9];
-wire bk_save = status[15];
+wire blend = status[16];
+wire bk_save = status[17];
 
 wire scandoubler_disable;
 wire ypbpr;
@@ -168,7 +214,18 @@ wire        sd_buff_wr;
 wire  [1:0] img_mounted;
 wire [31:0] img_size;
 
-user_io #(.STRLEN($size(CONF_STR)>>3)) user_io(
+`ifdef USE_HDMI
+wire        i2c_start;
+wire        i2c_read;
+wire  [6:0] i2c_addr;
+wire  [7:0] i2c_subaddr;
+wire  [7:0] i2c_dout;
+wire  [7:0] i2c_din;
+wire        i2c_ack;
+wire        i2c_end;
+`endif
+
+user_io #(.STRLEN($size(CONF_STR)>>3), .FEATURES(32'h0 | (BIG_OSD << 13) | (HDMI << 14))) user_io(
 	.clk_sys(clk),
 	.clk_sd(clk),
 	.conf_str(CONF_STR),
@@ -184,7 +241,16 @@ user_io #(.STRLEN($size(CONF_STR)>>3)) user_io(
 	.scandoubler_disable(scandoubler_disable),
 	.ypbpr(ypbpr),
 	.no_csync(no_csync),
-
+`ifdef USE_HDMI
+	.i2c_start      ( i2c_start      ),
+	.i2c_read       ( i2c_read       ),
+	.i2c_addr       ( i2c_addr       ),
+	.i2c_subaddr    ( i2c_subaddr    ),
+	.i2c_dout       ( i2c_dout       ),
+	.i2c_din        ( i2c_din        ),
+	.i2c_ack        ( i2c_ack        ),
+	.i2c_end        ( i2c_end        ),
+`endif
 	.joystick_0(core_joy_A),
 	.joystick_1(core_joy_B),
 
@@ -229,7 +295,15 @@ wire [7:0] nes_joy_B = { joyB[0], joyB[1], joyB[2], joyB[3], joyB[7], joyB[6], j
   wire clock_locked;
   wire clk85;
   wire clk;
-  clk clock_21mhz(.inclk0(CLOCK_27), .c0(clk85), .c1(clk), .locked(clock_locked));
+	wire clk_x2;
+  clk clock_21mhz(
+    .inclk0(CLOCK_27),
+    .c0(clk85),
+    .c1(clk),
+`ifdef USE_HDMI
+    .c2(clk_x2),
+`endif
+    .locked(clock_locked));
   assign SDRAM_CLK = clk85;
   assign SDRAM_CKE = 1;
 
@@ -498,6 +572,7 @@ data_io data_io (
 );
 
 wire nes_hs, nes_vs;
+wire nes_hb, nes_vb;
 wire [7:0] nes_r;
 wire [7:0] nes_g;
 wire [7:0] nes_b;
@@ -513,12 +588,14 @@ video video (
 
 	.sync_h(nes_hs),
 	.sync_v(nes_vs),
+	.hblank(nes_hb),
+	.vblank(nes_vb),
 	.r(nes_r),
 	.g(nes_g),
 	.b(nes_b)
 );
 
-mist_video #(.COLOR_DEPTH(8), .OSD_COLOR(3'd5), .SD_HCNT_WIDTH(10), .OUT_COLOR_DEPTH(VGA_BITS)) mist_video (
+mist_video #(.COLOR_DEPTH(8), .OSD_COLOR(3'd5), .SD_HCNT_WIDTH(10), .BIG_OSD(BIG_OSD), .USE_BLANKS(1'b1), .OUT_COLOR_DEPTH(VGA_BITS)) mist_video (
 	.clk_sys     ( clk        ),
 
 	// OSD SPI interface
@@ -530,7 +607,7 @@ mist_video #(.COLOR_DEPTH(8), .OSD_COLOR(3'd5), .SD_HCNT_WIDTH(10), .OUT_COLOR_D
 	.scanlines   ( scanlines  ),
 
 	// non-scandoubled pixel clock divider 0 - clk_sys/4, 1 - clk_sys/2
-	.ce_divider  ( 1'b0       ),
+	.ce_divider  ( 3'd1       ),
 
 	// 0 = HVSync 31KHz, 1 = CSync 15KHz
 	.scandoubler_disable ( scandoubler_disable ),
@@ -541,7 +618,7 @@ mist_video #(.COLOR_DEPTH(8), .OSD_COLOR(3'd5), .SD_HCNT_WIDTH(10), .OUT_COLOR_D
 	// Rotate OSD [0] - rotate [1] - left or right
 	.rotate      ( 2'b00      ),
 	// composite-like blending
-	.blend       ( 1'b0       ),
+	.blend       ( blend      ),
 
 	// video in
 	.R           ( nes_r      ),
@@ -550,6 +627,8 @@ mist_video #(.COLOR_DEPTH(8), .OSD_COLOR(3'd5), .SD_HCNT_WIDTH(10), .OUT_COLOR_D
 
 	.HSync       ( ~nes_hs    ),
 	.VSync       ( ~nes_vs    ),
+	.HBlank      ( nes_hb     ),
+	.VBlank      ( nes_vb     ),
 
 	// MiST video output signals
 	.VGA_R       ( VGA_R      ),
@@ -558,6 +637,71 @@ mist_video #(.COLOR_DEPTH(8), .OSD_COLOR(3'd5), .SD_HCNT_WIDTH(10), .OUT_COLOR_D
 	.VGA_VS      ( VGA_VS     ),
 	.VGA_HS      ( VGA_HS     )
 );
+
+`ifdef USE_HDMI
+i2c_master #(21_500_000) i2c_master (
+	.CLK         (clk),
+	.I2C_START   (i2c_start),
+	.I2C_READ    (i2c_read),
+	.I2C_ADDR    (i2c_addr),
+	.I2C_SUBADDR (i2c_subaddr),
+	.I2C_WDATA   (i2c_dout),
+	.I2C_RDATA   (i2c_din),
+	.I2C_END     (i2c_end),
+	.I2C_ACK     (i2c_ack),
+
+	//I2C bus
+	.I2C_SCL     (HDMI_SCL),
+	.I2C_SDA     (HDMI_SDA)
+);
+
+mist_video #(.COLOR_DEPTH(8), .OSD_COLOR(3'd5), .SD_HCNT_WIDTH(10), .BIG_OSD(BIG_OSD), .USE_BLANKS(1'b1), .OUT_COLOR_DEPTH(8)) hdmi_video (
+	.clk_sys     ( clk_x2     ),
+
+	// OSD SPI interface
+	.SPI_SCK     ( SPI_SCK    ),
+	.SPI_SS3     ( SPI_SS3    ),
+	.SPI_DI      ( SPI_DI     ),
+
+	// scanlines (00-none 01-25% 10-50% 11-75%)
+	.scanlines   ( scanlines  ),
+
+	// non-scandoubled pixel clock divider 0 - clk_sys/4, 1 - clk_sys/2
+	.ce_divider  ( 3'd0       ),
+
+	// 0 = HVSync 31KHz, 1 = CSync 15KHz
+	.scandoubler_disable ( scandoubler_disable ),
+	// disable csync without scandoubler
+	.no_csync    ( no_csync   ),
+	// YPbPr always uses composite sync
+	.ypbpr       ( ypbpr      ),
+	// Rotate OSD [0] - rotate [1] - left or right
+	.rotate      ( 2'b00      ),
+	// composite-like blending
+	.blend       ( blend      ),
+
+	// video in
+	.R           ( nes_r      ),
+	.G           ( nes_g      ),
+	.B           ( nes_b      ),
+
+	.HSync       ( ~nes_hs    ),
+	.VSync       ( ~nes_vs    ),
+	.HBlank      ( nes_hb     ),
+	.VBlank      ( nes_vb     ),
+
+	// MiST video output signals
+	.VGA_R       ( HDMI_R     ),
+	.VGA_G       ( HDMI_G     ),
+	.VGA_B       ( HDMI_B     ),
+	.VGA_VS      ( HDMI_VS    ),
+	.VGA_HS      ( HDMI_HS    ),
+	.VGA_DE      ( HDMI_DE    )
+);
+
+assign HDMI_PCLK = clk_x2;
+
+`endif
 
 assign AUDIO_R = audio;
 assign AUDIO_L = audio;
@@ -568,6 +712,32 @@ sigma_delta_dac sigma_delta_dac (
 	.CLK(clk),
 	.RESET(reset_nes)
 );
+
+`ifdef I2S_AUDIO
+i2s i2s (
+	.reset(1'b0),
+	.clk(clk85),
+	.clk_rate(32'd85_910_000),
+
+	.sclk(I2S_BCK),
+	.lrclk(I2S_LRCK),
+	.sdata(I2S_DATA),
+
+	.left_chan({~sample[15], sample[14:0]}),
+	.right_chan({~sample[15], sample[14:0]})
+);
+`endif
+
+`ifdef SPDIF_AUDIO
+spdif spdif
+(
+	.clk_i(clk85),
+	.rst_i(1'b0),
+	.clk_rate_i(32'd85_910_000),
+	.spdif_o(SPDIF),
+	.sample_i({2{~sample[15], sample[14:0]}})
+);
+`endif
 
 // SRAM handling
 
