@@ -28,9 +28,6 @@ module NES_mist(
 	inout         HDMI_SDA,
 	inout         HDMI_SCL,
 	input         HDMI_INT,
-	output        HDMI_BCK,
-	output        HDMI_LRCK,
-	output        HDMI_AUDIO,
 `endif
 
 	input         SPI_SCK,
@@ -81,6 +78,12 @@ module NES_mist(
 	output        I2S_BCK,
 	output        I2S_LRCK,
 	output        I2S_DATA,
+`endif
+`ifdef I2S_AUDIO_HDMI
+	output        HDMI_MCLK,
+	output        HDMI_BCK,
+	output        HDMI_LRCK,
+	output        HDMI_SDATA,
 `endif
 `ifdef SPDIF_AUDIO
 	output        SPDIF,
@@ -726,6 +729,14 @@ i2s i2s (
 	.left_chan({~sample[15], sample[14:0]}),
 	.right_chan({~sample[15], sample[14:0]})
 );
+`ifdef I2S_AUDIO_HDMI
+assign HDMI_MCLK = 0;
+always @(posedge clk85) begin
+	HDMI_BCK <= I2S_BCK;
+	HDMI_LRCK <= I2S_LRCK;
+	HDMI_SDATA <= I2S_DATA;
+end
+`endif
 `endif
 
 `ifdef SPDIF_AUDIO
