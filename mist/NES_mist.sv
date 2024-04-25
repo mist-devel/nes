@@ -158,7 +158,7 @@ assign SDRAM2_nWE = 1;
 // it to control the menu on the OSD 
 parameter CONF_STR = {
 			"NES;NESFDSNSF;",
-			"F,BIN,Load FDS BIOS;",
+			"F2,BIN,Load FDS BIOS;",
 			"S0,SAV,Mount SRAM;",
 			"TH,Write SRAM;",
 			`SEP
@@ -511,9 +511,8 @@ always @(posedge clk) begin
 
 	// signal write in the PPU memory phase
 	if(nes_ce == 3) begin
-		loader_write_mem <= loader_write_triggered;
-		if(loader_write_triggered)
-			loader_write_triggered <= 1'b0;
+		loader_write_mem <= loader_write_triggered | loader_write;
+		loader_write_triggered <= 1'b0;
 	end
 end
 
