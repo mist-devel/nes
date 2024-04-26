@@ -531,6 +531,7 @@ sdram sdram (
 	// system interface
 	.clk            ( clk85                    ),
 	.init_n         ( clock_locked             ),
+	.clkref         ( nes_ce[1]               ),
 
 	// PPU
 	.addrA          ( {3'b000, memory_addr_ppu} ),

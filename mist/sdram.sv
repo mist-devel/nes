@@ -37,6 +37,7 @@ module sdram (
 	// cpu/chipset interface
 	input             init_n,     // init signal after FPGA config to initialize RAM
 	input             clk,        // sdram clock
+	input             clkref,     // 0 - CPU cycle, 1 - PPU cycle
 
 	input [24:0]      addrA,      // 25 bit byte address
 	input             weA,        // ppu requests write
@@ -161,8 +162,8 @@ wire       need_refresh = (refresh_cnt >= RFRSH_CYCLES);
 reg        oeA_d, weA_d;
 reg        oeB_d, weB_d;
 reg        oeweC_d;
-wire       reqA = (~oeA_d & oeA) || (~weA_d & weA);
-wire       reqB = (~oeB_d & oeB) || (~weB_d & weB);
+wire       reqA = !clkref & ((~oeA_d & oeA) || (~weA_d & weA));
+wire       reqB =  clkref & ((~oeB_d & oeB) || (~weB_d & weB));
 wire       reqC = oeweC ^ oeweC_d;
 
 always @(posedge clk) begin
