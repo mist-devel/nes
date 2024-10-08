@@ -170,6 +170,7 @@ parameter CONF_STR = {
 			"OG,Blend,OFF,ON;",
 			"OCF,Palette,Digital Prime,Smooth,Unsat.,FCEUX,NES Classic,Composite,PC-10,PVM,Wavebeam,Real,Sony CXA,YUV,Greyscale,Rockman9,Ninten.;",
 			`SEP
+			"OI,Zapper,OFF,ON;",
 			"O8,Famicon keyboard,OFF,ON;",
 			"O9B,Disk side,Auto,A,B,C,D;",
 			`SEP
@@ -186,6 +187,7 @@ wire [1:0] scanlines = status[4:3];
 wire joy_swap = status[5];
 wire mirroring_osd = status[6];
 wire overscan_osd = status[7];
+wire zapper_en = status[18];
 wire famicon_kbd = status[8];
 wire [3:0] palette_osd = status[15:12];
 wire [2:0] diskside_osd = status[11:9];
@@ -293,8 +295,12 @@ wire [7:0] joyA = joy_swap ? core_joy_B[7:0] | core_joy_A[19:16] : core_joy_A[7:
 wire [7:0] joyB = joy_swap ? core_joy_A[7:0] | core_joy_B[19:16] : core_joy_B[7:0] | core_joy_A[19:16];
 
 wire [7:0] nes_joy_A = { joyA[0], joyA[1], joyA[2], joyA[3], joyA[7], joyA[6], joyA[5] | joyA_t[5], joyA[4] | joyA_t[4] };
-wire [7:0] nes_joy_B = { joyB[0], joyB[1], joyB[2], joyB[3], joyB[7], joyB[6], joyB[5] | joyB_t[5], joyB[4] | joyB_t[4] };
- 
+wire [7:0] nes_joy_B = zapper_en? 8'h00 : { joyB[0], joyB[1], joyB[2], joyB[3], joyB[7], joyB[6], joyB[5] | joyB_t[5], joyB[4] | joyB_t[4] };
+
+wire zapper_trigger = ~joyB[4];
+wire zapper_light = joyB[5];
+
+
   wire clock_locked;
   wire clk85;
   wire clk;
@@ -393,7 +399,7 @@ keyboard keyboard (
 	end
 
 	assign joypad1_data = {2'b0, mic, 1'b0, joypad_bits[0]};
-	assign joypad2_data = {famicon_kbd ? key_out : {powerpad_d4[0],powerpad_d3[0], 2'b00}, joypad_bits2[0]};
+	assign joypad2_data = {zapper_en? {zapper_trigger, zapper_light, 2'b00} : famicon_kbd ? key_out : {powerpad_d4[0],powerpad_d3[0], 2'b00}, joypad_bits2[0]};
 	
   // Loader
   wire [7:0] loader_input =  (loader_busy && !downloading) ? nsf_data : ioctl_dout;
